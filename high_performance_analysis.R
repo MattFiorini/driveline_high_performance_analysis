@@ -38,6 +38,13 @@ cleanPerformanceData = rbind(cleanPerformanceData, all_duplicate_data)
 # they were removed during the mean calculation to avoid excessive manipulation
 sum(duplicated(cleanPerformanceData$athlete_uid))
 
+sapply(cleanPerformanceData, function(x) sum(is.na(x)))
+
+#Need to remove NA's specifically for data points where athlete weight is null, Also understand if
+# nulls on Right is consistent with values being present on left side (only tracking dominant side)
+
+cleanPerformanceData %>% filter(is.na(ShoulderERL)) %>% summarise(ShouldERR_blank = sum(is.na(ShoulderERR)))
+#indicates that 23 values are present where the right is known and left is null, while 280 remain null
 
 #adding column into the data set to identify if player is a PO, Hitter or 2-way
 cleanPerformanceData = cleanPerformanceData %>%
@@ -52,3 +59,31 @@ cleanPerformanceData = cleanPerformanceData %>%
 cleanPerformanceData$Classifier = as.factor(cleanPerformanceData$Classifier)
 
 ### EDA to now understand the data based on each
+
+numeric_df = cleanPerformanceData %>% select(where(is.numeric))
+
+correlation_matrix = cor(numeric_df, use = "complete.obs")
+
+ggcorrplot(correlation_matrix, method = "circle")
+#far too noisy of a correlation matrix, will filter out correlations that are not significant,
+#specifically the middle quartiles of correlation (-0.49 to 0.49)
+
+cor_df = as.data.frame(as.table(correlation_matrix))
+
+filtered_cor_df = cor_df %>%
+  filter(!(Freq > -0.49 & Freq < 0.49))
+
+# Plot the filtered correlation matrix using ggplot
+ggplot(data = filtered_cor_df, aes(Var1, Var2, fill = Freq)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  theme_minimal() +
+  labs(title = "Filtered Correlation Matrix", fill = "Correlation")
+
+#drilling down into specific view for pitch and swing speed
+pitch_speed_cor = correlation_matrix["pitch_speed_mph",]
+bat_speed_cor = correlation_matrix["bat_speed_mph",]
+
+sort(pitch_speed_cor, decreasing = TRUE)
+sort(bat_speed_cor, decreasing = TRUE)
+       
