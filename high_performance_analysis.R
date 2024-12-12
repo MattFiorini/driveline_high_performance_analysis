@@ -46,6 +46,30 @@ sapply(cleanPerformanceData, function(x) sum(is.na(x)))
 cleanPerformanceData %>% filter(is.na(ShoulderERL)) %>% summarise(ShouldERR_blank = sum(is.na(ShoulderERR)))
 #indicates that 23 values are present where the right is known and left is null, while 280 remain null
 
+#run line to identify what rows of data have significant NA values
+na_athletes = cleanPerformanceData %>%
+  rowwise() %>%
+  mutate(na_count_row = sum(is.na(c_across(where(is.numeric))))) %>% 
+  ungroup() %>% 
+  group_by(athlete_uid) %>%
+  mutate(na_count = sum(na_count_row)) %>%
+  arrange(desc(na_count))
+
+#visualize the distribution of the NA's
+ggplot(na_athletes, aes(na_count)) + geom_histogram()
+
+#distribution shows leftward leaning amount of null values, will confirm what the distribution
+# of velocity is for IDs with greater than 20 NA's compared to the overall distribution to better
+# determine potential impact that removing them will have on the end results
+
+ggplot(na_athletes %>% filter(na_count > 20), aes(pitch_speed_mph)) + geom_histogram()
+ggplot(na_athletes %>% filter(na_count > 20), aes(bat_speed_mph)) + geom_histogram()
+ggplot(na_athletes, aes(pitch_speed_mph)) + geom_histogram()
+ggplot(na_athletes, aes(bat_speed_mph)) + geom_histogram()
+
+#determined that the distribution of the null values aligns with the rest of the data, will
+# remove the rows that have 20 or more NA's present      
+       
 #adding column into the data set to identify if player is a PO, Hitter or 2-way
 cleanPerformanceData = cleanPerformanceData %>%
   mutate(
