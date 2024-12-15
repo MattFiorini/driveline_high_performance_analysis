@@ -1,6 +1,6 @@
-install.packages("ggcorrplot")
 library(ggcorrplot)
 library(tidyverse)
+library(mice)
 
 rawPerformanceData = read.csv("https://raw.githubusercontent.com/drivelineresearch/openbiomechanics/main/high_performance/data/hp_obp.csv", header = TRUE, sep = ",")
 
@@ -68,7 +68,66 @@ ggplot(na_athletes, aes(pitch_speed_mph)) + geom_histogram()
 ggplot(na_athletes, aes(bat_speed_mph)) + geom_histogram()
 
 #determined that the distribution of the null values aligns with the rest of the data, will
-# remove the rows that have 20 or more NA's present      
+# remove the rows that have 20 or more NA's present. This based off a large proportion of the
+# data missing, potentially resulting in a negative representation of the larger data set findings
+# if ML applied to missing variables
+
+na_athletes = na_athletes %>% filter(na_count > 20) %>% select(athlete_uid)
+
+cleanPerformanceData = cleanPerformanceData %>% anti_join(na_athletes, by = "athlete_uid")
+
+sapply(cleanPerformanceData, function(x) sum(is.na(x)))
+
+#will understand the difference between the NA values peak takeoff to see if there is a large
+# difference in the distribution of velocity in both sets
+
+cleanPerformanceData %>% filter(is.na(peak_takeoff_force_.n._mean_pp)) %>% 
+  summarise(pitch_mean = mean(pitch_speed_mph, na.rm = T), pitch_median = median(pitch_speed_mph, na.rm = T), 
+            pitch_std = sd(pitch_speed_mph, na.rm = T), bat_mean = mean(bat_speed_mph, na.rm = T), 
+            bat_median = median(bat_speed_mph, na.rm = T), bat_std = sd(bat_speed_mph, na.rm = T))
+
+cleanPerformanceData %>% filter(!is.na(peak_takeoff_force_.n._mean_pp)) %>% 
+  summarise(pitch_mean = mean(pitch_speed_mph, na.rm = T), pitch_median = median(pitch_speed_mph, na.rm = T), 
+            pitch_std = sd(pitch_speed_mph, na.rm = T), bat_mean = mean(bat_speed_mph, na.rm = T), 
+            bat_median = median(bat_speed_mph, na.rm = T), bat_std = sd(bat_speed_mph, na.rm = T))
+
+# the missing peak takeoff values indicate a larger dispersion with smaller values of data based on
+# a larger standard deviation and lower means and medians for pitching data. Bat speed mirrors
+# existing data with peak value known. Based on the lack of large difference between the sets with
+# the values known vs unknown, the decision will be made to remove the variables from the data set.
+# The remaining missing values will be filled using mice
+
+cleanPerformanceData = cleanPerformanceData %>% select(-peak_takeoff_force_.n._mean_pp, 
+                                                       -peak_eccentric_force_.n._mean_pp,
+                                                       -peak_takeoff_force_asymmetry_.._l.r._mean_pp,
+                                                       -peak_eccentric_force_asymmetry_.._l.r._mean_pp)
+
+#isolate values that need to be imputed, will remove bat and pitch speed related variables
+
+imputedData = cleanPerformanceData %>% select(-bat_speed_mph, -hitting_max_hss, -pitch_speed_mph,
+                                              -pitching_max_hss)
+
+#given the left leaning emphasis of the data, will use the default method for mice, pmm
+
+imputedData = mice(data = imputedData,
+                   seed = 2016,
+                   method = "pmm",
+                   m = 5,
+                   maxit = 5)
+
+imputedData = mice::complete(imputedData,1)
+
+#left join the data back together to include imputed values
+
+cleanPerformanceData = imputedData %>%
+  left_join(cleanPerformanceData %>% select(athlete_uid, bat_speed_mph, hitting_max_hss,
+                                            pitching_max_hss, pitch_speed_mph),
+    by = "athlete_uid"
+  )
+
+names(cleanPerformanceData)
+
+sapply(cleanPerformanceData, function(x) sum(is.na(x)))      
        
 #adding column into the data set to identify if player is a PO, Hitter or 2-way
 cleanPerformanceData = cleanPerformanceData %>%
