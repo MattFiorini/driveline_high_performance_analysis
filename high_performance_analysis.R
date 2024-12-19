@@ -170,3 +170,149 @@ bat_speed_cor = correlation_matrix["bat_speed_mph",]
 sort(pitch_speed_cor, decreasing = TRUE)
 sort(bat_speed_cor, decreasing = TRUE)
        
+
+# initial observations from the data
+# - appears t-spine has limited direct correlation to swing and throwing speed
+# - counter movement depth has somewhat of an inverted relationship between swing speed, stronger
+# with throwing speed, this in theory applies based on an athletes ability to quickly develop force with
+# need to load
+# - shoulder mobility is crtiically important for throwers, if an athlete demonstrates an ability
+# to have excess mobility (large amount of both internal and external) that yields incredibly well
+# for throwing speed
+# - force production is critically important for both hitters and pitchers; the ability to produce
+# power is critical for an increase in speed
+# - body weight seemed to be more important for hitters compared to pitchers. While the correlation
+# is still present, the relationship is stronger for swing speed compared to pitch speed
+# - although body weight seems to be an important variable, interestingly relative strength has
+# a more neutral relationship with both variables, specifically with swing speed. Raises the
+# question of understanding the performance threshold for when gains in a certain variable begin to
+# have mitigating returns
+
+#to better understand how this idea of strength changes with each speed group, groups will be
+# segmented off into different groups based on pitch and swing speed to better understand how the
+# averages for these variables change group to group, and where are minimal increases in velocity being
+# observed
+
+#clean up environment
+rm(var, pitch_speed_cor, duplicate_athletes, duplicated_ids, bat_speed_cor, rawPerformanceData, na_athletes, multipleLinearModel,
+   imputedData, df, correlation_matrix, all_duplicate_data)
+
+#running k-means clustering, will separate a pitching and hitting only data frame
+# given the 2-way players, there will be some overlap but the data should still define the relationships 
+
+
+pitching_data = numeric_df %>% select(-bat_speed_mph, -hitting_max_hss, -pitching_max_hss) %>% filter(!is.na(pitch_speed_mph))
+hitting_data = numeric_df %>% select(-pitch_speed_mph,-pitching_max_hss, -hitting_max_hss) %>% filter(!is.na(bat_speed_mph))
+# removing pitching and hitting max hss from each to keep variables consistent b/w both data sets
+
+names(pitching_data)
+pitching_data = pitching_data[,c(39,1:38)]
+names(pitching_data)[1] <- "y"
+
+names(hitting_data)
+hitting_data = hitting_data[,c(39,1:38)]
+names(hitting_data)[1] <- "y"
+
+#initial clustering
+set.seed(123)  # set this to replicate results
+
+velo_df = data.frame() #accumulator for velocity results
+velo_df
+for(k in 1:20){
+  
+  # pitching set
+  kmeans_pitch = kmeans(x=pitching_data[,2:ncol(pitching_data)], centers=k, nstart=25, iter.max=100)
+  
+  # hitting set
+  kmeans_hit = kmeans(x=hitting_data[,2:ncol(hitting_data)], centers=k, nstart=25, iter.max=100)
+  
+  # combine cluster number and cost together, write to velo_df
+  velo_df = rbind(velo_df, cbind(k, kmeans_pitch$tot.withinss
+                                  , kmeans_hit$tot.withinss))
+}
+
+names(velo_df) = c("cluster","pitch","hit")
+velo_df
+par(mfrow=c(1,1))
+plot(x=velo_df$cluster, y=velo_df$pitch, main="k-Means Elbow Plot"
+     , col="blue", pch=19, type="b", cex.lab=1.2
+     , xlab="Number of Clusters", ylab="SSE")
+points(x=velo_df$cluster, y=velo_df$hit, col="red", pch=19)
+
+#based on data in elbow plot, appears that cluster size of 5 appears to be the most appropriate
+
+library(useful)
+getwd()
+setwd("C:\\Users\\Matt Fiorini\\OneDrive - purdue.edu\\R For Analytics - MGMT 59000\\Team Homework Assigments\\HW 3")
+source('multiplot.R')
+p1 = plot(kmeans_pitch_6, data=pitching_data)
+p2 = plot(kmeans_hit_6, data=hitting_data)
+multiplot(p1, p2)
+rm(p1, p2)
+
+kmeans_pitch_5 = kmeans(x=pitching_data[,2:ncol(pitching_data)], centers=5, nstart=25, iter.max=100)
+kmeans_hit_5 = kmeans(x=hitting_data[,2:ncol(hitting_data)], centers=5, nstart=25, iter.max=100)
+#clustering independant of velocity related variables to avoid data leakage into clusters
+
+pitching_data$cluster = as.factor(kmeans_pitch_5$cluster)
+hitting_data$cluster = as.factor(kmeans_hit_5$cluster)
+
+
+ggplot(pitching_data %>%
+  group_by(cluster) %>%
+  summarise(mean_pitch_speed = mean(y)), aes(x = cluster, y = mean_pitch_speed, fill = as.factor(cluster))) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Mean Pitch Speed by Cluster",
+    x = "Cluster",
+    y = "Mean Pitch Speed (mph)",
+    fill = "Cluster"
+  ) +
+  theme_minimal()
+
+pitching_data %>%
+  group_by(cluster) %>%
+  summarise(mean_pitch_speed = mean(y))
+
+#seeing larger difference between cluster 1 and 4; will observe the summary statistics for those
+# clusters to identify the differences between the smallest and largest clusters
+
+
+ggplot(hitting_data %>%
+         group_by(cluster) %>%
+         summarise(mean_swing_speed = mean(y)), aes(x = cluster, y = mean_swing_speed, fill = as.factor(cluster))) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Mean Swing Speed by Cluster",
+    x = "Cluster",
+    y = "Mean Swing Speed (mph)",
+    fill = "Cluster"
+  ) +
+  theme_minimal()
+
+hitting_data %>%
+  group_by(cluster) %>%
+  summarise(mean_swing_speed = mean(y))
+# Seeing larger difference between cluster 2 and 5, will better understand the difference between
+# each of the metrics in the cluster
+
+#once metrics are observed, will run gradient boosting to simplify the number of variables,
+# re-run clusters to understand if there is any simpler way to determine a proper relationship
+
+pitching_data_clustercomp = pitching_data %>% filter(cluster %in% c("1", "4"))
+
+summary_pitch_stats = pitching_data_clustercomp %>%
+  group_by(cluster) %>%
+  summarise(across(where(is.numeric), list(mean = ~mean(.x, na.rm = TRUE), 
+                                           median = ~median(.x, na.rm = TRUE))))
+
+hitting_data_clustercomp = hitting_data %>% filter(cluster %in% c("2", "5"))
+
+summary_hit_stats = hitting_data_clustercomp %>%
+  group_by(cluster) %>%
+  summarise(across(where(is.numeric), list(mean = ~mean(.x, na.rm = TRUE), 
+                                           median = ~median(.x, na.rm = TRUE))))
+# are seeing some noticable differences between the cluster across the board, however the large
+# difference may be more observable based on lower velocity athletes being included in the data set
+
+# will filter to only have the upper quartile of velocity, and re-engage in clustering
