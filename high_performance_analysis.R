@@ -445,3 +445,12 @@ combined_data <- bind_rows(summary_85_to_90, summary_90_plus)
 # for elite throwers (90+) by a mean of 15 pounds, which is influenced by larger outliers, as the median
 # reduced to 10 pounds of difference. 
 # relative strength numbers were similar, with the 85-90 group exhibiting greater relative strength.
+
+ 
+combined_data = combined_data %>% mutate(speed_label = ifelse(y_mean > 90, "fast", "slow"))
+
+percent_difference = combined_data %>%
+  summarise(across(where(is.numeric), 
+                   ~ (.[speed_label == "fast"] - .[speed_label == "slow"]) / .[speed_label == "slow"] * 100))
+
+percent_difference      
