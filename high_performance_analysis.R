@@ -316,3 +316,132 @@ summary_hit_stats = hitting_data_clustercomp %>%
 # difference may be more observable based on lower velocity athletes being included in the data set
 
 # will filter to only have the upper quartile of velocity, and re-engage in clustering
+
+
+upper_pitching_data = pitching_data %>% filter(y >= quantile(pitching_data$y, 0.8)) %>% select(-cluster)
+upper_hitting_data = hitting_data %>% filter(y >= quantile(hitting_data$y, 0.8)) %>% select(-cluster)
+
+velo_df = data.frame() #accumulator for velocity results
+velo_df
+for(k in 1:20){
+  
+  # pitching set
+  kmeans_pitch = kmeans(x=upper_pitching_data[,2:ncol(upper_pitching_data)], centers=k, nstart=25, iter.max=100)
+  
+  # hitting set
+  kmeans_hit = kmeans(x=upper_hitting_data[,2:ncol(upper_hitting_data)], centers=k, nstart=25, iter.max=100)
+  
+  # combine cluster number and cost together, write to velo_df
+  velo_df = rbind(velo_df, cbind(k, kmeans_pitch$tot.withinss
+                                 , kmeans_hit$tot.withinss))
+}
+
+names(velo_df) = c("cluster","pitch","hit")
+velo_df
+par(mfrow=c(1,1))
+plot(x=velo_df$cluster, y=velo_df$pitch, main="k-Means Elbow Plot"
+     , col="blue", pch=19, type="b", cex.lab=1.2
+     , xlab="Number of Clusters", ylab="SSE")
+points(x=velo_df$cluster, y=velo_df$hit, col="red", pch=19)
+
+#hitting with have 2 clusters, while throwing will have 4 clusters, given the elbow starting to break
+# at approximately those points
+
+kmeans_pitch_4 = kmeans(x=upper_pitching_data[,2:ncol(upper_pitching_data)], centers=4, nstart=25, iter.max=100)
+kmeans_hit_2 = kmeans(x=upper_hitting_data[,2:ncol(upper_hitting_data)], centers=2, nstart=25, iter.max=100)
+
+
+upper_pitching_data$cluster = as.factor(kmeans_pitch_4$cluster)
+upper_hitting_data$cluster = as.factor(kmeans_hit_2$cluster)
+
+
+
+upper_pitching_data %>%
+  group_by(cluster) %>%
+  summarise(mean_pitch_speed = mean(y), 
+            median_pitch = median(y),
+            sd_pitch = sd(y, na.rm = T),
+            min_pitch = min(y),
+            max_pitch = max(y),
+            no_of_pitchers = n())
+
+# a 3.2 difference is noted between cluster 2 and 3 for mean, median is 2.7. SD is larger than
+# other clusters indicating larger variance in MPH than other clusters, which is confirmed through
+# the min and max values having a larger range. It is important to note that the split of number
+# of pitchers into the clusters is significantly as cluster 4 is comprised of 115 (68.5% of quartile)
+# while cluster 2 is comprised of 5 pitchers (3% of the data set). We'll still observe the data to understand
+# the difference, but we'll compare cluster 1 to cluster 2, and leverage 4 to validate the data by
+# confirming that we're observing a difference between cluster 1 and 2 (although it will me a small
+# difference)
+
+upper_hitting_data %>%
+  group_by(cluster) %>%
+  summarise(mean_swing_speed = mean(y),
+            median_swing = median(y),
+            sd_swing = sd(y, na.rm = T),
+            min_swing = min(y),
+            max_swing = max(y),
+            no_of_hitters = n())
+#indistinguishable difference between means for hitting related data; upper 20% of dataset not as
+# significant compared to pitching related data as there is no difference between the mean. Seeing a
+# difference within the upper ranges of the swing speed for cluster 1, but no material difference
+# in the clusters from a velocity standpoint. 
+
+summary_stats = upper_pitching_data %>% 
+  filter(cluster %in% c("1", "2")) %>%
+  group_by(cluster) %>%
+  summarise(across(where(is.numeric), list(mean = ~mean(.x, na.rm = TRUE), 
+                                           median = ~median(.x, na.rm = TRUE))))
+print(summary_stats)
+
+# observable feedback from the data:
+# - cluster 2 has significant more asymmetrical athletes (1 side tending to be stronger than the other)
+# - best active stiffness from athletes was significantly different in cluster 2 compared to 1
+# - relative strength was half a unit larger in cluster 2 than 1 (for both mean and median)
+# - Athletes in cluster 2 were around 10 pounds lighter than cluster 1
+# - cluster 2 displayed greater ability to produce height when jumping vertically
+# most variables indicating that the same force production is present between athletes, however the
+# difference appears to lie within the ability to produce > force while maintaining a lighter body
+# weight, as this tends to allow an ability to move more efficiently while being capable of withstanding
+# the force put on the load
+# Will validate hypothesis between cluster 1 and 4, with the initial hypothesis that the differences
+# between 1 and 2 should continue to be observable, but to a smaller degree between 1 and 4, with 4
+# being greater than 1
+
+summary_stats = upper_pitching_data %>% 
+  filter(cluster %in% c("1", "4")) %>%
+  group_by(cluster) %>%
+  summarise(across(where(is.numeric), list(mean = ~mean(.x, na.rm = TRUE), 
+                                           median = ~median(.x, na.rm = TRUE))))
+print(summary_stats)
+
+# observations from the data between cluster 1 and 4
+# - body weight continues to be a distinguishable separating value between groups, with cluster 4 
+# having a lighter body weight than cluster 1 (mean of 203 v 212)
+# - relative strength numbers were similar between clusters
+# - similar levels of asymetrical were present, with cluster 4 being more symetrical than cluster 1
+# - athletes in cluster 4 had less contact time on jumps (able to create force quicker) than cluster 1
+# - athletes in cluster 1 created far better active stiffness compared to cluster 4
+# - slightly greater power production in cluster 1 than 4, but known as the mean weight for cluster 1
+# is also greater than cluster 4
+
+# as a final means of validating our hypothesis that the separation of elite rotational athletes
+# is the separation of body weight, relative strength, and potential asymetrical imbalances being present,
+# and the ability to limit contact time during explosive movements, we'll compare athletes with velocity
+# between 85-89 mph, and athletes velocity greater than 90 mph
+
+summary_85_to_90 = pitching_data %>% filter(y >= 85 & y < 90) %>%
+  summarise(across(where(is.numeric), list(mean = ~ mean(.x, na.rm = TRUE),
+                                          median = ~ median(.x, na.rm = TRUE))))
+
+summary_90_plus = pitching_data %>% filter(y >= 90) %>%
+  summarise(across(where(is.numeric),list(mean = ~ mean(.x, na.rm = TRUE),
+                                          median = ~ median(.x, na.rm = TRUE))))
+
+combined_data <- bind_rows(summary_85_to_90, summary_90_plus)
+
+# separation by velocity does confirm that higher velocity is associated with individuals who have
+# smaller contact time,greater amount of asymetry, produce greater power. Body weight did increase
+# for elite throwers (90+) by a mean of 15 pounds, which is influenced by larger outliers, as the median
+# reduced to 10 pounds of difference. 
+# relative strength numbers were similar, with the 85-90 group exhibiting greater relative strength.
