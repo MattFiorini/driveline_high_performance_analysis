@@ -394,6 +394,15 @@ summary_stats = upper_pitching_data %>%
                                            median = ~median(.x, na.rm = TRUE))))
 print(summary_stats)
 
+percent_difference_1_2 = summary_stats %>% 
+  filter(cluster %in% c("1", "2")) %>%
+  summarise(across(where(is.numeric), 
+                   ~ (.[cluster == "2"] - .[cluster == "1"]) / .[cluster == "1"] * 100)) %>%
+  mutate(across(everything(), abs)) %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+  arrange(desc(value)) %>%
+  slice_head(n = 15)
+       
 # observable feedback from the data:
 # - cluster 2 has significant more asymmetrical athletes (1 side tending to be stronger than the other)
 # - best active stiffness from athletes was significantly different in cluster 2 compared to 1
@@ -415,6 +424,15 @@ summary_stats = upper_pitching_data %>%
                                            median = ~median(.x, na.rm = TRUE))))
 print(summary_stats)
 
+percent_difference_1_4 = summary_stats %>% 
+  filter(cluster %in% c("1", "4")) %>%
+  summarise(across(where(is.numeric), 
+                   ~ (.[cluster == "4"] - .[cluster == "1"]) / .[cluster == "1"] * 100)) %>%
+  mutate(across(everything(), abs)) %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+  arrange(desc(value)) %>%
+  slice_head(n = 15)       
+       
 # observations from the data between cluster 1 and 4
 # - body weight continues to be a distinguishable separating value between groups, with cluster 4 
 # having a lighter body weight than cluster 1 (mean of 203 v 212)
@@ -451,6 +469,10 @@ combined_data = combined_data %>% mutate(speed_label = ifelse(y_mean > 90, "fast
 
 percent_difference = combined_data %>%
   summarise(across(where(is.numeric), 
-                   ~ (.[speed_label == "fast"] - .[speed_label == "slow"]) / .[speed_label == "slow"] * 100))
+                   ~ (.[speed_label == "fast"] - .[speed_label == "slow"]) / .[speed_label == "slow"] * 100)) %>%
+  mutate(across(everything(), abs)) %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+  arrange(desc(value)) %>%
+  slice_head(n = 15)
 
 percent_difference      
