@@ -127,8 +127,8 @@ cleanPerformanceData = imputedData %>%
 
 names(cleanPerformanceData)
 
-sapply(cleanPerformanceData, function(x) sum(is.na(x)))      
-       
+sapply(cleanPerformanceData, function(x) sum(is.na(x)))
+
 #adding column into the data set to identify if player is a PO, Hitter or 2-way
 cleanPerformanceData = cleanPerformanceData %>%
   mutate(
@@ -141,9 +141,25 @@ cleanPerformanceData = cleanPerformanceData %>%
   )
 cleanPerformanceData$Classifier = as.factor(cleanPerformanceData$Classifier)
 
+cleanPerformanceData = cleanPerformanceData[,c(1:38,40:44,39)]
+
+names(cleanPerformanceData)
+
 ### EDA to now understand the data based on each
 
 numeric_df = cleanPerformanceData %>% select(where(is.numeric))
+
+for (col in names(numeric_df)) {
+  # Create a histogram for the numeric column
+  hist(numeric_df[[col]], 
+       main = paste("Histogram of", col),  # Title with column name
+       xlab = col,                         # X-axis label with column name
+       col = "lightblue",                  # Color of the bars
+       border = "black")                   # Border color of the bars
+  
+  # Pause to allow viewing each plot before moving to the next
+  readline(prompt = "Press [Enter] to see the next histogram...")
+}
 
 correlation_matrix = cor(numeric_df, use = "complete.obs")
 
@@ -163,13 +179,15 @@ ggplot(data = filtered_cor_df, aes(Var1, Var2, fill = Freq)) +
   theme_minimal() +
   labs(title = "Filtered Correlation Matrix", fill = "Correlation")
 
+#include segmentation based on pitch and swing speed, group together into upper, mid and low
+# level swing speed based on the data
+
 #drilling down into specific view for pitch and swing speed
 pitch_speed_cor = correlation_matrix["pitch_speed_mph",]
 bat_speed_cor = correlation_matrix["bat_speed_mph",]
 
 sort(pitch_speed_cor, decreasing = TRUE)
 sort(bat_speed_cor, decreasing = TRUE)
-       
 
 # initial observations from the data
 # - appears t-spine has limited direct correlation to swing and throwing speed
@@ -241,22 +259,21 @@ points(x=velo_df$cluster, y=velo_df$hit, col="red", pch=19)
 
 #based on data in elbow plot, appears that cluster size of 5 appears to be the most appropriate
 
-library(useful)
-getwd()
-setwd("C:\\Users\\Matt Fiorini\\OneDrive - purdue.edu\\R For Analytics - MGMT 59000\\Team Homework Assigments\\HW 3")
-source('multiplot.R')
-p1 = plot(kmeans_pitch_6, data=pitching_data)
-p2 = plot(kmeans_hit_6, data=hitting_data)
-multiplot(p1, p2)
-rm(p1, p2)
-
 kmeans_pitch_5 = kmeans(x=pitching_data[,2:ncol(pitching_data)], centers=5, nstart=25, iter.max=100)
 kmeans_hit_5 = kmeans(x=hitting_data[,2:ncol(hitting_data)], centers=5, nstart=25, iter.max=100)
 #clustering independant of velocity related variables to avoid data leakage into clusters
 
+library(useful)
+getwd()
+setwd("C:\\Users\\Matt Fiorini\\OneDrive - purdue.edu\\R For Analytics - MGMT 59000\\Team Homework Assigments\\HW 3")
+source('multiplot.R')
+p1 = plot(kmeans_pitch_5, data=pitching_data)
+p2 = plot(kmeans_hit_5, data=hitting_data)
+multiplot(p1, p2)
+rm(p1, p2)
+
 pitching_data$cluster = as.factor(kmeans_pitch_5$cluster)
 hitting_data$cluster = as.factor(kmeans_hit_5$cluster)
-
 
 ggplot(pitching_data %>%
   group_by(cluster) %>%
@@ -274,9 +291,14 @@ pitching_data %>%
   group_by(cluster) %>%
   summarise(mean_pitch_speed = mean(y))
 
-#seeing larger difference between cluster 1 and 4; will observe the summary statistics for those
+#seeing larger difference between cluster 2 and 5; will observe the summary statistics for those
 # clusters to identify the differences between the smallest and largest clusters
 
+t.test(y ~ cluster, data = pitching_data, subset = cluster %in% c(2, 5))
+
+#t-test confirms that we can reject the null hypothesis, and accept the alternative, which is the that
+# there is a significant statistical difference between throwing speed for the clusters with the
+# biggest difference
 
 ggplot(hitting_data %>%
          group_by(cluster) %>%
@@ -293,33 +315,20 @@ ggplot(hitting_data %>%
 hitting_data %>%
   group_by(cluster) %>%
   summarise(mean_swing_speed = mean(y))
-# Seeing larger difference between cluster 2 and 5, will better understand the difference between
+# Seeing larger difference between cluster 4 and 5, will better understand the difference between
 # each of the metrics in the cluster
 
-#once metrics are observed, will run gradient boosting to simplify the number of variables,
-# re-run clusters to understand if there is any simpler way to determine a proper relationship
+t.test(y ~ cluster, data = hitting_data, subset = cluster %in% c(4, 5))
 
-pitching_data_clustercomp = pitching_data %>% filter(cluster %in% c("1", "4"))
+# t-test identifies a difference statistical difference between both clusters
 
-summary_pitch_stats = pitching_data_clustercomp %>%
-  group_by(cluster) %>%
-  summarise(across(where(is.numeric), list(mean = ~mean(.x, na.rm = TRUE), 
-                                           median = ~median(.x, na.rm = TRUE))))
-
-hitting_data_clustercomp = hitting_data %>% filter(cluster %in% c("2", "5"))
-
-summary_hit_stats = hitting_data_clustercomp %>%
-  group_by(cluster) %>%
-  summarise(across(where(is.numeric), list(mean = ~mean(.x, na.rm = TRUE), 
-                                           median = ~median(.x, na.rm = TRUE))))
 # are seeing some noticable differences between the cluster across the board, however the large
 # difference may be more observable based on lower velocity athletes being included in the data set
 
-# will filter to only have the upper quartile of velocity, and re-engage in clustering
+# will filter to only have the upper 30% of velocity, and re-engage in clustering
 
-
-upper_pitching_data = pitching_data %>% filter(y >= quantile(pitching_data$y, 0.8)) %>% select(-cluster)
-upper_hitting_data = hitting_data %>% filter(y >= quantile(hitting_data$y, 0.8)) %>% select(-cluster)
+upper_pitching_data = pitching_data %>% filter(y >= quantile(pitching_data$y, 0.7)) %>% select(-cluster)
+upper_hitting_data = hitting_data %>% filter(y >= quantile(hitting_data$y, 0.7)) %>% select(-cluster)
 
 velo_df = data.frame() #accumulator for velocity results
 velo_df
@@ -354,8 +363,6 @@ kmeans_hit_2 = kmeans(x=upper_hitting_data[,2:ncol(upper_hitting_data)], centers
 upper_pitching_data$cluster = as.factor(kmeans_pitch_4$cluster)
 upper_hitting_data$cluster = as.factor(kmeans_hit_2$cluster)
 
-
-
 upper_pitching_data %>%
   group_by(cluster) %>%
   summarise(mean_pitch_speed = mean(y), 
@@ -365,98 +372,94 @@ upper_pitching_data %>%
             max_pitch = max(y),
             no_of_pitchers = n())
 
-# a 3.2 difference is noted between cluster 2 and 3 for mean, median is 2.7. SD is larger than
-# other clusters indicating larger variance in MPH than other clusters, which is confirmed through
-# the min and max values having a larger range. It is important to note that the split of number
-# of pitchers into the clusters is significantly as cluster 4 is comprised of 115 (68.5% of quartile)
-# while cluster 2 is comprised of 5 pitchers (3% of the data set). We'll still observe the data to understand
-# the difference, but we'll compare cluster 1 to cluster 2, and leverage 4 to validate the data by
-# confirming that we're observing a difference between cluster 1 and 2 (although it will me a small
-# difference)
+# 2 and 3 cluster have the largest difference, but still fairly small. Will test using t-test to
+# identify the difference
+
+t.test(y ~ cluster, data = upper_pitching_data, subset = cluster %in% c(1, 3))
+
+#given p-value of 0.3644, we cannot reject the null. We will strictly observe the full data set
 
 upper_hitting_data %>%
   group_by(cluster) %>%
-  summarise(mean_swing_speed = mean(y),
+  summarise(mean_swing_speed = mean(y), 
             median_swing = median(y),
             sd_swing = sd(y, na.rm = T),
             min_swing = min(y),
             max_swing = max(y),
             no_of_hitters = n())
-#indistinguishable difference between means for hitting related data; upper 20% of dataset not as
-# significant compared to pitching related data as there is no difference between the mean. Seeing a
-# difference within the upper ranges of the swing speed for cluster 1, but no material difference
-# in the clusters from a velocity standpoint. 
 
-summary_stats = upper_pitching_data %>% 
-  filter(cluster %in% c("1", "2")) %>%
+t.test(y ~ cluster, data = upper_hitting_data, subset = cluster %in% c(1, 2))
+
+# the t-test for the upper hitting data confirms that there is not a distinguishable difference
+# between and a failure to reject the null. This confirms the consensus that cluster observations
+# can only be made
+
+rm(upper_hitting_data, upper_pitching_data, kmeans_pitch_4, kmeans_hit_2, velo_df, kmeans_hit, kmeans_pitch)
+#removing to clear room
+
+#Thorwing data
+summary_stats = pitching_data %>% 
+  filter(cluster %in% c("2", "5")) %>%
   group_by(cluster) %>%
-  summarise(across(where(is.numeric), list(mean = ~mean(.x, na.rm = TRUE), 
-                                           median = ~median(.x, na.rm = TRUE))))
+  summarise(across(where(is.numeric), list(mean = ~mean(.x, na.rm = TRUE))))
 print(summary_stats)
 
-percent_difference_1_2 = summary_stats %>% 
-  filter(cluster %in% c("1", "2")) %>%
+percent_difference_2_5 = summary_stats %>% 
+  filter(cluster %in% c("2", "5")) %>%
   summarise(across(where(is.numeric), 
-                   ~ (.[cluster == "2"] - .[cluster == "1"]) / .[cluster == "1"] * 100)) %>%
+                   ~ (.[cluster == "2"] - .[cluster == "5"]) / .[cluster == "5"] * 100)) %>%
   mutate(across(everything(), abs)) %>%
   pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
   arrange(desc(value)) %>%
-  slice_head(n = 15)
-       
-# observable feedback from the data:
-# - cluster 2 has significant more asymmetrical athletes (1 side tending to be stronger than the other)
-# - best active stiffness from athletes was significantly different in cluster 2 compared to 1
-# - relative strength was half a unit larger in cluster 2 than 1 (for both mean and median)
-# - Athletes in cluster 2 were around 10 pounds lighter than cluster 1
-# - cluster 2 displayed greater ability to produce height when jumping vertically
-# most variables indicating that the same force production is present between athletes, however the
-# difference appears to lie within the ability to produce > force while maintaining a lighter body
-# weight, as this tends to allow an ability to move more efficiently while being capable of withstanding
-# the force put on the load
-# Will validate hypothesis between cluster 1 and 4, with the initial hypothesis that the differences
-# between 1 and 2 should continue to be observable, but to a smaller degree between 1 and 4, with 4
-# being greater than 1
+  slice_head(n=10)
 
-summary_stats = upper_pitching_data %>% 
-  filter(cluster %in% c("1", "4")) %>%
+ggplot(as.data.frame(percent_difference_2_5), aes(x = reorder(variable, value), y = value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  coord_flip() +  # Flip coordinates for better readability
+  labs(
+    title = "Histogram of Pitching Variable Values",
+    x = "Variable",
+    y = "Value"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#hitting data
+summary_stats_hit = hitting_data %>% 
+  filter(cluster %in% c("4", "5")) %>%
   group_by(cluster) %>%
-  summarise(across(where(is.numeric), list(mean = ~mean(.x, na.rm = TRUE), 
-                                           median = ~median(.x, na.rm = TRUE))))
-print(summary_stats)
+  summarise(across(where(is.numeric), list(mean = ~mean(.x, na.rm = TRUE))))
+print(summary_stats_hit)
 
-percent_difference_1_4 = summary_stats %>% 
-  filter(cluster %in% c("1", "4")) %>%
+percent_difference_4_5 = summary_stats_hit %>% 
+  filter(cluster %in% c("4", "5")) %>%
   summarise(across(where(is.numeric), 
-                   ~ (.[cluster == "4"] - .[cluster == "1"]) / .[cluster == "1"] * 100)) %>%
+                   ~ (.[cluster == "5"] - .[cluster == "4"]) / .[cluster == "4"] * 100)) %>%
   mutate(across(everything(), abs)) %>%
   pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
   arrange(desc(value)) %>%
-  slice_head(n = 15)       
-       
-# observations from the data between cluster 1 and 4
-# - body weight continues to be a distinguishable separating value between groups, with cluster 4 
-# having a lighter body weight than cluster 1 (mean of 203 v 212)
-# - relative strength numbers were similar between clusters
-# - similar levels of asymetrical were present, with cluster 4 being more symetrical than cluster 1
-# - athletes in cluster 4 had less contact time on jumps (able to create force quicker) than cluster 1
-# - athletes in cluster 1 created far better active stiffness compared to cluster 4
-# - slightly greater power production in cluster 1 than 4, but known as the mean weight for cluster 1
-# is also greater than cluster 4
+  slice_head(n=10)
+
+ggplot(as.data.frame(percent_difference_4_5), aes(x = reorder(variable, value), y = value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  coord_flip() +  # Flip coordinates for better readability
+  labs(
+    title = "Histogram of Hitting Variable Values",
+    x = "Variable",
+    y = "Value"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 
 # as a final means of validating our hypothesis that the separation of elite rotational athletes
 # is the separation of body weight, relative strength, and potential asymetrical imbalances being present,
 # and the ability to limit contact time during explosive movements, we'll compare athletes with velocity
 # between 85-89 mph, and athletes velocity greater than 90 mph
 
-summary_85_to_90 = pitching_data %>% filter(y >= 85 & y < 90) %>%
-  summarise(across(where(is.numeric), list(mean = ~ mean(.x, na.rm = TRUE),
-                                          median = ~ median(.x, na.rm = TRUE))))
-
-summary_90_plus = pitching_data %>% filter(y >= 90) %>%
-  summarise(across(where(is.numeric),list(mean = ~ mean(.x, na.rm = TRUE),
-                                          median = ~ median(.x, na.rm = TRUE))))
-
-combined_data <- bind_rows(summary_85_to_90, summary_90_plus)
+pitch_85_to_90 = pitching_data %>% filter(y >= 85 & y < 90)
+pitch_90_plus = pitching_data %>% filter(y >= 90)
+combined_data = bind_rows(pitch_85_to_90, pitch_90_plus)
 
 # separation by velocity does confirm that higher velocity is associated with individuals who have
 # smaller contact time,greater amount of asymetry, produce greater power. Body weight did increase
@@ -464,15 +467,35 @@ combined_data <- bind_rows(summary_85_to_90, summary_90_plus)
 # reduced to 10 pounds of difference. 
 # relative strength numbers were similar, with the 85-90 group exhibiting greater relative strength.
 
- 
-combined_data = combined_data %>% mutate(speed_label = ifelse(y_mean > 90, "fast", "slow"))
+combined_data = combined_data %>% mutate(speed_label = ifelse(y > 90, "fast", "slow"))
 
-percent_difference = combined_data %>%
+#re-confirm that there is statistical significance between both velocity in both sets
+
+t.test(y ~ speed_label, data = combined_data)
+
+#given a p-value of less than 0.05, this allows us to recognize the statistical significance
+# between the fast and slow group
+
+#will create summary data to calculate the means and find the relative difference
+
+summary_combined_data = combined_data %>% group_by(speed_label) %>%
+  summarise(across(where(is.numeric), list(mean = ~mean(.x, na.rm = TRUE))))
+
+percent_difference = summary_combined_data %>%
   summarise(across(where(is.numeric), 
                    ~ (.[speed_label == "fast"] - .[speed_label == "slow"]) / .[speed_label == "slow"] * 100)) %>%
   mutate(across(everything(), abs)) %>%
   pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
   arrange(desc(value)) %>%
-  slice_head(n = 15)
+  slice_head(n = 6)
 
-percent_difference      
+ggplot(as.data.frame(percent_difference), aes(x = reorder(variable, value), y = value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  coord_flip() +  # Flip coordinates for better readability
+  labs(
+    title = "Histogram of Throwing Variable Values",
+    x = "Variable",
+    y = "Value"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
