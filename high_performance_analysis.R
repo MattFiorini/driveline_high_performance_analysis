@@ -499,3 +499,59 @@ ggplot(as.data.frame(percent_difference), aes(x = reorder(variable, value), y = 
   ) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+common_throwing_variables = inner_join(percent_difference, percent_difference_2_5, by = "variable")
+print(common_throwing_variables)
+# the major common variables that are both present when comparing different groups are:
+# cmj_stiffness_asymmetry_.._l.r._mean_cmj_mean
+# p2_concentric_impulse_asymmetry_.._l.r._mean_cmj_mean
+# p1_concentric_impulse_asymmetry_.._l.r._mean_sj_mean
+
+# same comparison to be made with swing speed, will observe swing speed greater than 70 mph
+# and between 65-70mph
+
+swing_65_to_70 = hitting_data %>% filter(y >= 65 & y < 70)
+swing_70_plus = hitting_data %>% filter(y >= 70)
+combined_swing_data = bind_rows(swing_65_to_70, swing_70_plus)
+
+combined_swing_data = combined_swing_data %>% mutate(speed_label = ifelse(y > 70, "fast", "slow"))
+
+#re-confirm that there is statistical significance between both velocity in both sets
+
+t.test(y ~ speed_label, data = combined_swing_data)
+
+#given a p-value of less than 0.05, this allows us to recognize the statistical significance
+# between the fast and slow group
+
+
+summary_swing_combined_data = combined_swing_data %>% group_by(speed_label) %>%
+  summarise(across(where(is.numeric), list(mean = ~mean(.x, na.rm = TRUE))))
+
+percent_swing_difference = summary_swing_combined_data %>%
+  summarise(across(where(is.numeric), 
+                   ~ (.[speed_label == "fast"] - .[speed_label == "slow"]) / .[speed_label == "slow"] * 100)) %>%
+  mutate(across(everything(), abs)) %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+  arrange(desc(value)) %>%
+  slice_head(n = 5)
+
+ggplot(as.data.frame(percent_swing_difference), aes(x = reorder(variable, value), y = value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  coord_flip() +  # Flip coordinates for better readability
+  labs(
+    title = "Histogram of Hitting Variable Values",
+    x = "Variable",
+    y = "Value"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+common_swing_variables = inner_join(percent_swing_difference, percent_difference_4_5, by = "variable")
+print(common_swing_variables)
+
+# common variables are not as large as with pitching, but there are still common variables, with the
+# 3 most common being:
+# p2_concentric_impulse_asymmetry_.._l.r._mean_cmj_mean
+# eccentric_deceleration_impulse_.asymmetry._.._l.r._mean_cmj_mean
+# p2_concentric_impulse_asymmetry_.._l.r._mean_sj_mean       
