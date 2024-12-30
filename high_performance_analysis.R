@@ -555,3 +555,39 @@ print(common_swing_variables)
 # p2_concentric_impulse_asymmetry_.._l.r._mean_cmj_mean
 # eccentric_deceleration_impulse_.asymmetry._.._l.r._mean_cmj_mean
 # p2_concentric_impulse_asymmetry_.._l.r._mean_sj_mean       
+
+  
+# Comparing similar variables both present in throwing and pitching differences between fast and slow rotational athletes
+inner_join(common_swing_variables, common_throwing_variables, by = "variable")
+# lone common variable is: p2_concentric_impulse_asymmetry_.._l.r._mean_cmj_mean
+
+# this highlights the large imbalance that occurs with elite level athletes, and how the asymetrical
+# can become more noticeable with elite rotational athletes. This is undertandable given the volume
+# of reps that occur on one side compared to another.
+
+# to identify variables that have a linear relationship with velocity and swing speed, we'll re-examine
+# the correlation matrix that was initially computed
+
+pitch_speed_cor = correlation_matrix["pitch_speed_mph",]
+bat_speed_cor = correlation_matrix["bat_speed_mph",]
+
+sort(pitch_speed_cor, decreasing = TRUE)
+sort(bat_speed_cor, decreasing = TRUE)
+
+# as force production increases (peak power), velocity has a linear relationship. 
+
+# final step of piecing together different performance attributes will be to model the data
+# and identify the accuracy of predicting athletes swing and throwing speed based on the variables
+# identified. This will be done using Recursive Feature Elimination
+
+library(gbm)
+library(xgboost)
+library(caret)
+
+#throwing data
+sizes = c(20, 25, 30, 35)
+control = rfeControl(functions = rfFuncs, method = "cv", number = 10)
+rfe_results_throw = rfe(x = pitching_data[,2:ncol(pitching_data)], y = pitching_data$y, sizes = sizes, rfeControl = control)
+plot(rfe_results_throw, type = c("g", "o"))  # Plots performance across different subset sizes
+#plot indicating that the lowest RMSE is at the 30 variable mark
+     
