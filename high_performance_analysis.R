@@ -568,8 +568,14 @@ inner_join(common_swing_variables, common_throwing_variables, by = "variable")
 # to identify variables that have a linear relationship with velocity and swing speed, we'll re-examine
 # the correlation matrix that was initially computed
 
-pitch_speed_cor = correlation_matrix["pitch_speed_mph",]
-bat_speed_cor = correlation_matrix["bat_speed_mph",]
+pitching_data = pitching_data %>% select(where(is.numeric))
+hitting_data = hitting_data %>% select(where(is.numeric))
+
+correlation_matrix_throw = cor(pitching_data, use = "complete.obs")
+correlation_matrix_hit = cor(hitting_data, use = "complete.obs")
+
+pitch_speed_cor = correlation_matrix_throw["y",]
+bat_speed_cor = correlation_matrix_hit["y",]
 
 sort(pitch_speed_cor, decreasing = TRUE)
 sort(bat_speed_cor, decreasing = TRUE)
@@ -584,10 +590,45 @@ library(gbm)
 library(xgboost)
 library(caret)
 
+#Feature Engineering to remove redundant variables and simplify 
+
+# Highly Correlated Values
+
+# Pitching
+
+descCorThrow = cor(pitching_data[,2:ncol(pitching_data)])
+highlyCorDescrThrow = findCorrelation(descCorThrow, cutoff = 0.8)
+filteredDescThrow = pitching_data[,2:ncol(pitching_data)][,-highlyCorDescrThrow]
+pitching_data = cbind(pitching_data$y, filteredDescThrow)
+names(pitching_data)[1] = "y"
+
+# Hitting
+
+descCorHit = cor(hitting_data[,2:ncol(hitting_data)])
+highlyCorDescrHit = findCorrelation(descCorHit, cutoff = 0.8)
+filteredDescHit = hitting_data[,2:ncol(hitting_data)][,-highlyCorDescrHit]
+hitting_data = cbind(hitting_data$y, filteredDescHit)
+names(hitting_data)[1] = "y"
+
 #throwing data
-sizes = c(20, 25, 30, 35)
+sizes = c(10, 15, 20, 25)
 control = rfeControl(functions = rfFuncs, method = "cv", number = 10)
 rfe_results_throw = rfe(x = pitching_data[,2:ncol(pitching_data)], y = pitching_data$y, sizes = sizes, rfeControl = control)
 plot(rfe_results_throw, type = c("g", "o"))  # Plots performance across different subset sizes
-#plot indicating that the lowest RMSE is at the 30 variable mark
-     
+#plot indicating that the lowest RMSE is at the 15 variable mark for pitchers
+varImp(rfe_results_throw)
+selected_throw_features = predictors(rfe_results_throw)
+d = pitching_data[, selected_throw_features]
+pitching_data = cbind(pitching_data$y, d)
+names(pitching_data)[1] = "y"
+
+#hitting data
+rfe_results_hit = rfe(x = hitting_data[,2:ncol(hitting_data)], y = hitting_data$y, sizes = sizes, rfeControl = control)
+plot(rfe_results_hit, type = c("g", "o"))  # Plots performance across different subset sizes
+#plot indicating that the lowest RMSE is at the 10 variable mark for hitters
+varImp(rfe_results_hit)
+selected_hit_features = predictors(rfe_results_hit)
+d = hitting_data[, selected_hit_features]
+hitting_data = cbind(hitting_data$y, d)
+names(hitting_data)[1] = "y"
+       
