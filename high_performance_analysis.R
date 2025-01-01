@@ -632,3 +632,145 @@ d = hitting_data[, selected_hit_features]
 hitting_data = cbind(hitting_data$y, d)
 names(hitting_data)[1] = "y"
        
+#splitting both data sets up to understand how impactful these selected variables will be to the 
+# ability to accurately predict throwing and swing speed
+
+#throwing data
+set.seed(19990)
+trainPitch = createDataPartition(y = pitching_data$y, p = 0.8, list = F)
+trPitch = pitching_data[trainPitch,]
+tePitch = pitching_data[-trainPitch,]
+
+
+#swing data
+trainHit = createDataPartition(y = hitting_data$y, p = 0.8, list = F)
+trHit = hitting_data[trainHit,]
+teHit = hitting_data[-trainHit,]
+
+ctrl = trainControl(method="cv", number = 10, classProbs = F, 
+                    summaryFunction = defaultSummary, allowParallel = T)
+
+mPitch = train(y ~ ., data = trPitch, method = "gbm", trControl = ctrl, metric = "RMSE", verbose = F)
+mHit = train(y ~ ., data = trHit, method = "gbm", trControl = ctrl, metric = "RMSE", verbose = F)
+
+#mThrow train
+defaultSummary(data=data.frame(obs=trPitch$y, pred=predict(mPitch, newdata=trPitch))
+               , model=mPitch)
+#      RMSE  Rsquared       MAE 
+# 4.5752074 0.7820216 3.3756521
+#mThrow test
+defaultSummary(data=data.frame(obs=tePitch$y, pred=predict(mPitch, newdata=tePitch))
+               , model=mPitch)
+#      RMSE  Rsquared       MAE 
+# 5.9935098 0.6105431 4.3459839
+#mHit train
+defaultSummary(data=data.frame(obs=trHit$y, pred=predict(mHit, newdata=trHit))
+               , model=mHit)
+#      RMSE  Rsquared       MAE 
+# 3.7807547 0.7640313 2.8146670
+#mHit test
+defaultSummary(data=data.frame(obs=teHit$y, pred=predict(mHit, newdata=teHit))
+               , model=mHit)
+#      RMSE  Rsquared       MAE 
+# 3.1987575 0.7942578 2.3771203
+
+# both models have underperformed, will reasses and try without the RFE transformations and solely 
+# use feature engineering, will reset the pitching and hitting data frames to how they were prior
+# to RFE and re-test
+
+pitching_data = cbind(pitching_data$y, filteredDescThrow)
+names(pitching_data)[1] = "y"
+
+hitting_data = cbind(hitting_data$y, filteredDescHit)
+names(hitting_data)[1] = "y"
+
+set.seed(2025)
+trainPitch = createDataPartition(y = pitching_data$y, p = 0.8, list = F)
+trPitch = pitching_data[trainPitch,]
+tePitch = pitching_data[-trainPitch,]
+
+#swing data
+trainHit = createDataPartition(y = hitting_data$y, p = 0.8, list = F)
+trHit = hitting_data[trainHit,]
+teHit = hitting_data[-trainHit,]
+
+ctrl = trainControl(method="cv", number = 10, classProbs = F, 
+                    summaryFunction = defaultSummary, allowParallel = T)
+
+mPitch = train(y ~ ., data = trPitch, method = "gbm", trControl = ctrl, metric = "RMSE", verbose = F)
+mHit = train(y ~ ., data = trHit, method = "gbm", trControl = ctrl, metric = "RMSE", verbose = F)
+
+#mThrow train
+defaultSummary(data=data.frame(obs=trPitch$y, pred=predict(mPitch, newdata=trPitch))
+               , model=mPitch)
+# RMSE Rsquared      MAE 
+# 5.173742 0.722946 3.647921 
+#mThrow test
+defaultSummary(data=data.frame(obs=tePitch$y, pred=predict(mPitch, newdata=tePitch))
+               , model=mPitch)
+# RMSE  Rsquared       MAE 
+# 5.2819907 0.6964376 4.4520396
+#mHit train
+defaultSummary(data=data.frame(obs=trHit$y, pred=predict(mHit, newdata=trHit))
+               , model=mHit)
+# RMSE  Rsquared       MAE 
+# 3.4172693 0.8034829 2.5838670
+#mHit test
+defaultSummary(data=data.frame(obs=teHit$y, pred=predict(mHit, newdata=teHit))
+               , model=mHit)
+# RMSE  Rsquared       MAE 
+# 4.0158504 0.7148143 2.7848097
+
+# will try one final time without additional feature engineering to maintain critical relationships
+
+pitching_data = numeric_df %>% select(-bat_speed_mph, -hitting_max_hss, -pitching_max_hss) %>% filter(!is.na(pitch_speed_mph))
+hitting_data = numeric_df %>% select(-pitch_speed_mph,-pitching_max_hss, -hitting_max_hss) %>% filter(!is.na(bat_speed_mph))
+
+names(pitching_data)
+pitching_data = pitching_data[,c(39,1:38)]
+names(pitching_data)[1] <- "y"
+
+names(hitting_data)
+hitting_data = hitting_data[,c(39,1:38)]
+names(hitting_data)[1] <- "y"
+
+set.seed(2030)
+trainPitch = createDataPartition(y = pitching_data$y, p = 0.8, list = F)
+trPitch = pitching_data[trainPitch,]
+tePitch = pitching_data[-trainPitch,]
+
+#swing data
+trainHit = createDataPartition(y = hitting_data$y, p = 0.8, list = F)
+trHit = hitting_data[trainHit,]
+teHit = hitting_data[-trainHit,]
+
+ctrl = trainControl(method="cv", number = 10, classProbs = F, 
+                    summaryFunction = defaultSummary, allowParallel = T)
+
+mPitch = train(y ~ ., data = trPitch, method = "gbm", trControl = ctrl, metric = "RMSE", verbose = F)
+mHit = train(y ~ ., data = trHit, method = "gbm", trControl = ctrl, metric = "RMSE", verbose = F)
+
+#mThrow train
+defaultSummary(data=data.frame(obs=trPitch$y, pred=predict(mPitch, newdata=trPitch))
+               , model=mPitch)
+# RMSE  Rsquared       MAE 
+# 4.8733649 0.7570516 3.5015916 
+#mThrow test
+defaultSummary(data=data.frame(obs=tePitch$y, pred=predict(mPitch, newdata=tePitch))
+               , model=mPitch)
+# RMSE  Rsquared       MAE 
+# 4.8230834 0.7284779 3.8685593
+#mHit train
+defaultSummary(data=data.frame(obs=trHit$y, pred=predict(mHit, newdata=trHit))
+               , model=mHit)
+# RMSE  Rsquared       MAE 
+# 3.3394354 0.8012979 2.4829433
+#mHit test
+defaultSummary(data=data.frame(obs=teHit$y, pred=predict(mHit, newdata=teHit))
+               , model=mHit)
+#      RMSE  Rsquared       MAE 
+# 4.3126817 0.7337956 3.0243840
+
+# able to achieve the most effective model for pitching by maintaining all of the attributes with
+# limited feature engineering, where as the hitting model was the most accurate when RFE and feature
+# engineering were applied
