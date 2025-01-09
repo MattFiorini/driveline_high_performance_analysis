@@ -692,22 +692,20 @@ sum(ncol(reduced_hitting_data))
 
 # Feature Scalling
 # Pitching
-preProcValues = preProcess(reduced_pitching_data[,2:ncol(reduced_pitching_data)]
+preProcValuesPitch = preProcess(reduced_pitching_data[,2:ncol(reduced_pitching_data)]
                             , method = c("center","scale","pca"))
-summary(preProcValues)
-reduced_pitching_data = predict(preProcValues, reduced_pitching_data)
+summary(preProcValuesPitch)
+reduced_pitching_data = predict(preProcValuesPitch, reduced_pitching_data)
 
-loadingsPitch = preProcValues$rotation
-head(loadingsPitch[, 1:2])
+loadingsPitch = preProcValuesPitch$rotation
 
 # Hitting
-preProcValues = preProcess(reduced_hitting_data[,2:ncol(reduced_hitting_data)]
+preProcValuesHit = preProcess(reduced_hitting_data[,2:ncol(reduced_hitting_data)]
                             , method = c("center","scale","pca"))
-summary(preProcValues)
-reduced_hitting_data = predict(preProcValues, reduced_hitting_data)
+summary(preProcValuesHit)
+reduced_hitting_data = predict(preProcValuesHit, reduced_hitting_data)
 
-loadingsHit = preProcValues$rotation
-head(loadingsHit[, 1:2])
+loadingsHit = preProcValuesHit$rotation
 
 #splitting both data sets up to understand how impactful these selected variables will be to the 
 # ability to accurately predict throwing and swing speed
@@ -717,7 +715,6 @@ set.seed(19990)
 trainPitch1 = createDataPartition(y = reduced_pitching_data$y, p = 0.8, list = F)
 trPitch1 = reduced_pitching_data[trainPitch,]
 tePitch1 = reduced_pitching_data[-trainPitch,]
-
 
 #reduced swing data
 trainHit1 = createDataPartition(y = reduced_hitting_data$y, p = 0.8, list = F)
