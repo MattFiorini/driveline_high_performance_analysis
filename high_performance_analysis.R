@@ -1,6 +1,55 @@
 library(ggcorrplot)
 library(tidyverse)
 library(mice)
+library(httr)
+library(jsonlite)
+
+# Function to connect gemini AI API
+gemini = function(prompt, 
+                   temperature=0.5,
+                   max_output_tokens=1024,
+                   api_key=Sys.getenv("GEMINI_API_KEY"),
+                   model = "gemini-1.5-flash-latest") {
+  
+  if(nchar(api_key)<1) {
+    api_key <- readline("Paste your API key here: ")
+    Sys.setenv(GEMINI_API_KEY = api_key)
+  }
+  
+  model_query = paste0(model, ":generateContent")
+  
+  response = POST(
+    url = paste0("https://generativelanguage.googleapis.com/v1beta/models/", model_query),
+    query = list(key = api_key),
+    content_type_json(),
+    encode = "json",
+    body = list(
+      contents = list(
+        parts = list(
+          list(text = prompt)
+        )),
+      generationConfig = list(
+        temperature = temperature,
+        maxOutputTokens = max_output_tokens
+      )
+    )
+  )
+  
+  if(response$status_code>200) {
+    stop(paste("Error - ", content(response)$error$message))
+  }
+  
+  candidates = content(response)$candidates
+  outputs = unlist(lapply(candidates, function(candidate) candidate$content$parts))
+  
+  return(outputs)
+  
+}
+
+#test run for AI tool
+prompt = "R code to remove duplicates using dplyr."
+cat(gemini(prompt))
+
 
 rawPerformanceData = read.csv("https://raw.githubusercontent.com/drivelineresearch/openbiomechanics/main/high_performance/data/hp_obp.csv", header = TRUE, sep = ",")
 
