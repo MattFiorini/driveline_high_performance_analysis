@@ -443,6 +443,81 @@ t.test(y ~ cluster, data = upper_hitting_data, subset = cluster %in% c(1, 2))
 # between and a failure to reject the null. This confirms the consensus that cluster observations
 # can only be made
 
+
+# To still understand how the relationships change, we'll observe the correlations and see the difference between upper 30% and lower 70% of data
+
+lower_pitching_data = pitching_data %>% filter(y < quantile(pitching_data$y, 0.7)) %>% select(-cluster)
+lower_hitting_data = hitting_data %>% filter(y < quantile(hitting_data$y, 0.7)) %>% select(-cluster)
+upper_pitching_data = upper_pitching_data %>% select(-cluster)
+upper_hitting_data = upper_hitting_data %>% select(-cluster)
+
+upper_pitch_cor = sort(cor(upper_pitching_data, use = "everything")["y",], decreasing = T)
+lower_pitch_cor = sort(cor(lower_pitching_data, use = "everything")["y",], decreasing = T)
+
+upper_hit_cor = sort(cor(upper_hitting_data, use = "everything")["y",], decreasing = T)
+lower_hit_cor = sort(cor(lower_hitting_data, use = "everything")["y",], decreasing = T)
+
+cor_df = data.frame(
+  Variable = names(lower_hit_cor),
+  Lower_Hit_Cor = lower_hit_cor,
+  Upper_Hit_Cor = upper_hit_cor[names(lower_hit_cor)],
+  Lower_Pitch_Cor = lower_pitch_cor[names(lower_hit_cor)],
+  Upper_Pitch_Cor = upper_pitch_cor[names(lower_hit_cor)]
+)
+cor_df
+
+#correlation is not nearly as linear as velocity increases in athletes, will observe what variables see the
+# largest change between lower and upper groups
+
+pitch_diff = abs(lower_pitch_cor - upper_pitch_cor)
+hit_diff = abs(lower_hit_cor - upper_hit_cor)
+
+diff_df = data.frame(
+  Variable = names(pitch_diff),
+  Pitch_Diff = pitch_diff,
+  Hit_Diff = hit_diff
+)
+
+largest_pitch_changes = diff_df[order(-diff_df$Pitch_Diff), ][1:10, 1:2]
+largest_hit_changes = diff_df[order(-diff_df$Hit_Diff), ][1:10, c(1,3)]
+
+cat("\nTop 5 variables with largest pitch correlation changes:\n")
+print(largest_pitch_changes)
+
+cat("\nTop 5 variables with largest hit correlation changes:\n")
+print(largest_hit_changes)
+
+pitch_var_change = diff_df[order(-diff_df$Pitch_Diff), ][1:10, 1]
+hit_var_change = diff_df[order(-diff_df$Hit_Diff), ][1:10, 1]
+
+for (var in pitch_var_change) {
+  plot <- ggplot(pitching_data, aes_string(x = var, y = "y")) +
+    geom_point(alpha = 0.6, color = "blue") +  # Scatterplot
+    geom_smooth(method = "lm", color = "red", se = FALSE) +  # Correlation line
+    labs(title = paste("Scatterplot of", var, "vs y"),
+         x = var, 
+         y = "y") +
+    theme_minimal()
+  
+  print(plot)
+  # Pause to allow viewing each plot before moving to the next
+  readline(prompt = "Press [Enter] to see the next histogram...")
+}
+for (var in hit_var_change) {
+  plot <- ggplot(hitting_data, aes_string(x = var, y = "y")) +
+    geom_point(alpha = 0.6, color = "blue") +  # Scatterplot
+    geom_smooth(method = "lm", color = "red", se = FALSE) +  # Correlation line
+    labs(title = paste("Scatterplot of", var, "vs y"),
+         x = var, 
+         y = "y") +
+    theme_minimal()
+  
+  print(plot)
+  # Pause to allow viewing each plot before moving to the next
+  readline(prompt = "Press [Enter] to see the next histogram...")
+}       
+# large differences between upper and lower, shows the influence of outliers on the data.       
+       
 rm(upper_hitting_data, upper_pitching_data, kmeans_pitch_4, kmeans_hit_2, velo_df, kmeans_hit, kmeans_pitch)
 #removing to clear room
 
